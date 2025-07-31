@@ -1,0 +1,88 @@
+import requests
+import csv
+import os
+import io
+import smtplib
+from azure.storage.blob import BlobServiceClient
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# Replace with your real API key
+api_key = os.getenv("API_KEY")
+azure_connection_string = os.getenv("AZURE_CONNECTION_STRING")
+container_name = 'ams'
+blob_folder = 'Quick Stats'
+blob_name = f'{blob_folder}/hemp_nass_data.csv'
+
+# Build the API URL
+url = 'http://quickstats.nass.usda.gov/api/api_GET/'
+
+# Define parameters: commodity_desc='HEMP'
+params = {
+    'key': api_key,
+    'commodity_desc': 'HEMP',
+    'year__GE': '2019',  # Example: from 2019 onward
+    'format': 'JSON'
+}
+
+# ======== EMAIL CONFIG ========
+gmail_user = 'marketnewsscript@gmail.com'
+gmail_app_password = os.getenv("GMAIL_PASSWORD")
+recipient = 'blakebradbeer@tamu.edu'
+
+def send_notification_email(subject, body):
+    msg = MIMEMultipart()
+    msg['From'] = gmail_user
+    msg['To'] = recipient
+    msg['Sbuject'] = subject
+
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        server.login(gmail_user, gmail_app_password)
+        server.sendmail(gmail_user, recipient, msg.as_string())
+        server.quit()
+        print('Email sent!')
+    except Exception as e:
+        print(f'Failed to send email: {e}')
+
+# ======== MAIN SCRIPT ========
+response = requests.get(url, params=params)
+if response.status_code == 200:
+    data = response.json()
+    records = data['data']
+
+
+    # Writing the data to a CSV in memory
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=records[0].keys())
+    writer.writeheader()
+    writer.writerows(records)
+    csv_content = output.getvalue().encode('utf-8') # This converts to bytes for Azure upload
+
+    # Uploading to Azure Blob Storage
+    blob_service_client = BlobServiceClient.from_connection_string(azure_connection_string)
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+    # This will overwrite the blob instead of ammending it, but don't worry it will keep the same link in Azure
+    blob_client.upload_blob(csv_content, overwrite=True)
+
+    print(f"Done! Uploaded {len(records)} hemp records to Azure blob: {container_name}/{blob_name}")
+
+
+    # ---- Send Email ----
+    subject = "Hemp NASS Data Upload Successful"
+    body = f"""
+    The hemp NASS data script has completed successfully.blob_folder
+    {len(records)} records were uploaded to Azure Blob Storage at: {container_name}/{blob_name}
+
+    This is an automated notfication, do not reply
+    """
+    send_notification_email(subject, body)
+
+
+else:
+    error_subject = "Hemp NASS Data Script Failed"
+    error_body = f"Request failed with status: {response.status_code}, message: {response.text}"
+    send_notification_email(error_subject, error_body)
+    print(error_body)
