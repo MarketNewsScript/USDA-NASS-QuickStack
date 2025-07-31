@@ -26,9 +26,9 @@ params = {
 }
 
 # ======== EMAIL CONFIG ========
-gmail_user = 'marketnewsscript@gmail.com'
+gmail_user = os.getenv("GMAIL_USER)
 gmail_app_password = os.getenv("GMAIL_PASSWORD")
-recipient = 'blakebradbeer@tamu.edu'
+recipient = os.getenv("RECIPIENT")
 
 def send_notification_email(subject, body):
     msg = MIMEMultipart()
