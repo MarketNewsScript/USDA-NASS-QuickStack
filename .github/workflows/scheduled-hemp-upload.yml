@@ -31,4 +31,4 @@ jobs:
         GMAIL_USER: ${{ secrets.GMAIL_USER }}
         GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         RECIPIENT: ${{ secrets.RECIPIENT }}
-      run: python scripts/hemp_data_upload.py
+      run: python "USDA NASS QuickStack Script/hemp_data_upload.py"
